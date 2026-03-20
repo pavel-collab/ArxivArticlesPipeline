@@ -1,0 +1,22 @@
+# Database
+sqlalchemy
+psycopg2-binary
+
+# Configuration
+pydantic
+pydantic-settings
+python-dotenv
+
+# LangChain + OpenAI
+langchain
+langchain-openai
+openai
+
+# Telegram
+python-telegram-bot
+
+# RSS parsing
+feedparser
+
+# HTTP client
+httpx
