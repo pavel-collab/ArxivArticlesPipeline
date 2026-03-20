@@ -1,6 +1,9 @@
 version: "3.8"
 
 services:
+  # ============================================================
+  # PostgreSQL - хранение данных о статьях
+  # ============================================================
   postgres:
     image: postgres:15-alpine
     environment:
@@ -17,16 +20,85 @@ services:
       timeout: 5s
       retries: 5
 
-  pipeline:
+  # ============================================================
+  # RabbitMQ - очередь задач
+  # ============================================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"   # AMQP protocol
+      - "15672:15672" # Management UI (http://localhost:15672)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # Scheduler - запускается по расписанию, создаёт задачи
+  # ============================================================
+  scheduler:
     build: .
     command: python -m app.main scheduler
     env_file:
       - .env
     environment:
       - POSTGRES_HOST=postgres
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ============================================================
+  # Classify Worker - классифицирует статьи через LLM
+  # ============================================================
+  classify-worker:
+    build: .
+    command: python -m app.main classify
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # ============================================================
+  # Notify Worker - отправляет уведомления в Telegram
+  # ============================================================
+  notify-worker:
+    build: .
+    command: python -m app.main notify
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - RABBITMQ_HOST=rabbitmq
+      - LOG_DIR=/app/logs
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  rabbitmq_data:

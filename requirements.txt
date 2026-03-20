@@ -20,3 +20,6 @@ feedparser
 
 # HTTP client
 httpx
+
+# RabbitMQ
+pika
